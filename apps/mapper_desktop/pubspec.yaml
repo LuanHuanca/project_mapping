@@ -1,0 +1,36 @@
+name: mapper_desktop
+description: Projection mapping desktop app for Windows.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.6.1
+  window_manager: ^0.4.3
+  file_picker: ^8.1.7
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  video_player: ^2.9.2
+  video_player_win: ^2.3.11
+  uuid: ^4.5.1
+  mapper_core:
+    path: ../../packages/mapper_core
+  mapper_aws_api:
+    path: ../../packages/mapper_aws_api
+  mapper_vision:
+    path: ../../packages/mapper_vision
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/config/api_config.example.json
