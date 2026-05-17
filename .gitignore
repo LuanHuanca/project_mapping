@@ -7,6 +7,16 @@ build/
 *.g.dart
 *.freezed.dart
 
+# Cursor — local/ephemeral only (rules + docs in .cursor/ ARE committed)
+.cursor/plans/
+.cursor/chat/
+.cursor/sessions/
+.cursor/tmp/
+.cursor/cache/
+.cursor/.agent-tools/
+.cursor/**/*.local
+.cursor/settings.local.json
+
 # Node / CDK
 node_modules/
 cdk.out/

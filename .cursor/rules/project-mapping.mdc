@@ -1,0 +1,47 @@
+---
+description: Project Mapping — projection mapping Flutter + AWS (always apply)
+alwaysApply: true
+---
+
+# Project Mapping — reglas del agente
+
+## Identidad del proyecto
+
+- **Idea:** projection mapping con proyector + webcam; Rekognition detecta objetos; video por bounding box; calibración homografía.
+- **Ruta canónica:** `D:\Applications\Project_mapping`
+- **GitHub:** https://github.com/LuanHuanca/project_mapping (`git@github-personal:LuanHuanca/project_mapping.git`)
+- **No usar** `C:\Users\Luan\Projects\projection-mapper` (obsoleto/vacío).
+
+## Antes de cambios grandes
+
+Leer en orden según la tarea:
+
+| Tarea | Documento |
+|-------|-----------|
+| Contexto general | `.cursor/docs/00-idea-principal.md` |
+| Arquitectura | `.cursor/docs/01-arquitectura.md` |
+| AWS / CDK | `.cursor/docs/03-aws-serverless.md` |
+| Flutter UI | `.cursor/docs/04-flutter-app.md` |
+| Rekognition / tracking | `.cursor/docs/05-rekognition-tracking.md` |
+| Qué hacer ahora | `.cursor/docs/08-proximos-pasos.md` |
+| Índice completo | `.cursor/README.md` |
+
+## Convenciones
+
+- Responder en **español** salvo petición contraria.
+- Stack: Flutter Windows + CDK TypeScript + Rekognition DetectLabels (MVP).
+- Modo híbrido: nube para analyze; tracking local entre re-detecciones.
+- No commitear secretos (`api_config.json`, `.env`, `cdk.context.json`).
+
+## Deuda técnica prioritaria
+
+1. Webcam en vivo en scene editor.
+2. JPEG real en `capture/analyze`.
+3. `cdk deploy` + configurar API en app.
+4. Tracking con OpenCV/CSRT (sustituir tracker simple).
+
+## Estructura rápida
+
+- `apps/mapper_desktop` — UI
+- `packages/mapper_core|aws_api|vision` — lógica
+- `infra/` — CDK
