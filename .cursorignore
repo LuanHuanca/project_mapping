@@ -1,0 +1,6 @@
+﻿# Cursor index exclusions (build artifacts, deps)
+**/.dart_tool/
+**/build/
+**/node_modules/
+**/cdk.out/
+**/.git/
