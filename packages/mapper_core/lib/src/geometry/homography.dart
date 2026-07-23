@@ -4,7 +4,7 @@ import 'point2d.dart';
 /// Computes a 3x3 homography (row-major) from 4 point correspondences
 /// using the Direct Linear Transform (DLT) for planar mapping.
 class Homography {
-  Homography(this.matrix);
+  const Homography(this.matrix);
 
   /// Row-major 3x3.
   final List<double> matrix;

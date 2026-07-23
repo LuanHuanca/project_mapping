@@ -6,6 +6,10 @@ class ContentBinding {
     this.loop = true,
     this.volume = 1.0,
     this.zIndex = 0,
+    this.lightIntensity = 1.0,
+    this.feathering = 0.0,
+    this.opacity = 1.0,
+    this.isSpotlight = false,
   });
 
   final String? localPath;
@@ -14,6 +18,18 @@ class ContentBinding {
   final bool loop;
   final double volume;
   final int zIndex;
+
+  /// Light intensity multiplier (0.0 to 2.0)
+  final double lightIntensity;
+
+  /// Edge feathering / blur mask (0.0 to 1.0)
+  final double feathering;
+
+  /// Region opacity (0.0 to 1.0)
+  final double opacity;
+
+  /// Whether this region acts as a pure projector light spotlight cutout
+  final bool isSpotlight;
 
   bool get hasVideo => localPath != null && localPath!.isNotEmpty;
 
@@ -24,6 +40,10 @@ class ContentBinding {
         'loop': loop,
         'volume': volume,
         'zIndex': zIndex,
+        'lightIntensity': lightIntensity,
+        'feathering': feathering,
+        'opacity': opacity,
+        'isSpotlight': isSpotlight,
       };
 
   factory ContentBinding.fromJson(Map<String, dynamic>? json) {
@@ -35,6 +55,10 @@ class ContentBinding {
       loop: json['loop'] as bool? ?? true,
       volume: (json['volume'] as num?)?.toDouble() ?? 1.0,
       zIndex: json['zIndex'] as int? ?? 0,
+      lightIntensity: (json['lightIntensity'] as num?)?.toDouble() ?? 1.0,
+      feathering: (json['feathering'] as num?)?.toDouble() ?? 0.0,
+      opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
+      isSpotlight: json['isSpotlight'] as bool? ?? false,
     );
   }
 
@@ -45,6 +69,10 @@ class ContentBinding {
     bool? loop,
     double? volume,
     int? zIndex,
+    double? lightIntensity,
+    double? feathering,
+    double? opacity,
+    bool? isSpotlight,
   }) {
     return ContentBinding(
       localPath: localPath ?? this.localPath,
@@ -53,6 +81,10 @@ class ContentBinding {
       loop: loop ?? this.loop,
       volume: volume ?? this.volume,
       zIndex: zIndex ?? this.zIndex,
+      lightIntensity: lightIntensity ?? this.lightIntensity,
+      feathering: feathering ?? this.feathering,
+      opacity: opacity ?? this.opacity,
+      isSpotlight: isSpotlight ?? this.isSpotlight,
     );
   }
 }

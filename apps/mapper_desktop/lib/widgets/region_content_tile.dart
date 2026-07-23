@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:mapper_core/mapper_core.dart';
 import 'package:video_player/video_player.dart';
@@ -62,6 +61,9 @@ class _RegionContentTileState extends State<RegionContentTile> {
   }
 
   Color get _fallbackColor {
+    if (widget.object.content.isSpotlight) {
+      return Colors.white;
+    }
     final hex = widget.object.content.colorHex.replaceFirst('#', '');
     if (hex.length == 6) {
       return Color(int.parse('FF$hex', radix: 16));
@@ -71,9 +73,19 @@ class _RegionContentTileState extends State<RegionContentTile> {
 
   @override
   Widget build(BuildContext context) {
+    final content = widget.object.content;
     final controller = _controller;
-    if (controller != null && controller.value.isInitialized) {
-      return SizedBox(
+
+    Widget childWidget;
+
+    if (content.isSpotlight) {
+      childWidget = Container(
+        width: widget.size.width,
+        height: widget.size.height,
+        color: Colors.white,
+      );
+    } else if (controller != null && controller.value.isInitialized) {
+      childWidget = SizedBox(
         width: widget.size.width,
         height: widget.size.height,
         child: FittedBox(
@@ -86,12 +98,54 @@ class _RegionContentTileState extends State<RegionContentTile> {
           ),
         ),
       );
+    } else {
+      childWidget = Container(
+        width: widget.size.width,
+        height: widget.size.height,
+        color: _fallbackColor,
+      );
     }
 
-    return Container(
-      width: widget.size.width,
-      height: widget.size.height,
-      color: _fallbackColor,
-    );
+    // Apply Light Intensity ColorFilter
+    final intensity = content.lightIntensity.clamp(0.0, 2.0);
+    if ((intensity - 1.0).abs() > 0.01) {
+      final matrix = <double>[
+        intensity, 0, 0, 0, 0,
+        0, intensity, 0, 0, 0,
+        0, 0, intensity, 0, 0,
+        0, 0, 0, 1, 0,
+      ];
+      childWidget = ColorFiltered(
+        colorFilter: ColorFilter.matrix(matrix),
+        child: childWidget,
+      );
+    }
+
+    // Apply Opacity
+    if (content.opacity < 1.0) {
+      childWidget = Opacity(
+        opacity: content.opacity.clamp(0.0, 1.0),
+        child: childWidget,
+      );
+    }
+
+    // Apply Feathering (edge blur mask)
+    if (content.feathering > 0.0) {
+      final blurRadius = content.feathering * 16.0;
+      childWidget = Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.8),
+              blurRadius: blurRadius,
+              spreadRadius: blurRadius / 2,
+            ),
+          ],
+        ),
+        child: childWidget,
+      );
+    }
+
+    return childWidget;
   }
 }

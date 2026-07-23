@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mapper_core/mapper_core.dart';
@@ -12,14 +13,23 @@ class CalibrationWizard extends ConsumerStatefulWidget {
 }
 
 class _CalibrationWizardState extends ConsumerState<CalibrationWizard> {
-  int _step = 0;
-  final List<Offset?> _cameraCorners = List.filled(4, null);
+  CameraController? _cameraController;
+  bool _isCameraInitialized = false;
+  int _selectedCornerIndex = 0;
 
-  static const _cornerLabels = [
-    'Superior izquierda',
-    'Superior derecha',
-    'Inferior derecha',
-    'Inferior izquierda',
+  // Normalized 0..1 corner positions [TopLeft, TopRight, BottomRight, BottomLeft]
+  final List<Offset> _corners = [
+    const Offset(0.1, 0.1),
+    const Offset(0.9, 0.1),
+    const Offset(0.9, 0.9),
+    const Offset(0.1, 0.9),
+  ];
+
+  static const _cornerNames = [
+    'Superior Izquierda (TL)',
+    'Superior Derecha (TR)',
+    'Inferior Derecha (BR)',
+    'Inferior Izquierda (BL)',
   ];
 
   static const _projectorCorners = [
@@ -29,27 +39,56 @@ class _CalibrationWizardState extends ConsumerState<CalibrationWizard> {
     Point2D(0, 1),
   ];
 
-  void _onTapCanvas(Offset local, Size size) {
-    if (_step != 1) return;
-    final idx = _cameraCorners.indexWhere((c) => c == null);
-    if (idx < 0) return;
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+
+      final controller = CameraController(
+        cameras.first,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      setState(() {
+        _cameraController = controller;
+        _isCameraInitialized = true;
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  void _nudgeSelectedCorner(double dx, double dy) {
     setState(() {
-      _cameraCorners[idx] = local;
+      final current = _corners[_selectedCornerIndex];
+      _corners[_selectedCornerIndex] = Offset(
+        (current.dx + dx).clamp(0.0, 1.0),
+        (current.dy + dy).clamp(0.0, 1.0),
+      );
     });
   }
 
   void _applyCalibration() {
-    final cameraPoints = <Point2D>[];
-    for (final corner in _cameraCorners) {
-      if (corner == null) return;
-    }
-    final box = context.findRenderObject() as RenderBox?;
-    final w = box?.size.width ?? 1.0;
-    final h = box?.size.height ?? 1.0;
-
-    for (final corner in _cameraCorners) {
-      cameraPoints.add(Point2D(corner!.dx / w, corner.dy / h));
-    }
+    final cameraPoints = _corners
+        .map((c) => Point2D(c.dx.clamp(0.0, 1.0), c.dy.clamp(0.0, 1.0)))
+        .toList();
 
     final homography = Homography.fromCorrespondences(
       source: cameraPoints,
@@ -58,7 +97,9 @@ class _CalibrationWizardState extends ConsumerState<CalibrationWizard> {
 
     if (homography == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo calcular la homografía. Repite los 4 puntos.')),
+        const SnackBar(
+          content: Text('Error al calcular homografía. Ajusta la posición de las 4 esquinas.'),
+        ),
       );
       return;
     }
@@ -73,114 +114,264 @@ class _CalibrationWizardState extends ConsumerState<CalibrationWizard> {
         );
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Calibración guardada. Las regiones se proyectan al espacio del proyector.')),
+      const SnackBar(
+        backgroundColor: Color(0xFF10B981),
+        content: Text('¡Calibración guardada exitosamente! Regiones alineadas con el proyector.'),
+      ),
     );
+
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Calibración cámara → proyector')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Paso ${_step + 1} de 2', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            if (_step == 0) ...[
-              const Text(
-                'Proyecta un rectángulo blanco en toda el área útil del proyector. '
-                'En el siguiente paso marcarás las 4 esquinas de ese rectángulo en la vista de cámara.',
+      backgroundColor: const Color(0xFF0B0F19),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0F172A),
+        title: const Text('Calibración Interactiva Quad Pinning (Cámara → Proyector)'),
+      ),
+      body: Row(
+        children: [
+          // Live Viewport with Drag Handles
+          Expanded(
+            flex: 3,
+            child: Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
-              const Spacer(),
-              FilledButton(
-                onPressed: () => setState(() => _step = 1),
-                child: const Text('Continuar'),
-              ),
-            ] else ...[
-              Text(
-                'Toca las esquinas en orden: ${_cornerLabels[_cameraCorners.indexWhere((c) => c == null).clamp(0, 3)]}',
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return GestureDetector(
-                      onTapDown: (d) => _onTapCanvas(
-                        d.localPosition,
-                        Size(constraints.maxWidth, constraints.maxHeight),
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white24),
+              clipBehavior: Clip.antiAlias,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final w = constraints.maxWidth;
+                  final h = constraints.maxHeight;
+
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Background Camera Stream
+                      if (_isCameraInitialized && _cameraController != null)
+                        CameraPreview(_cameraController!)
+                      else
+                        Container(
                           color: const Color(0xFF1E1E2E),
+                          child: const Center(
+                            child: Text(
+                              'Cámara en vivo (arrastra las 4 esquinas sobre la imagen)',
+                              style: TextStyle(color: Colors.white38),
+                            ),
+                          ),
                         ),
-                        child: CustomPaint(
-                          size: Size(constraints.maxWidth, constraints.maxHeight),
-                          painter: _CornerPainter(_cameraCorners),
+
+                      // Quad Polygon Paint
+                      CustomPaint(
+                        size: Size(w, h),
+                        painter: _QuadPainter(_corners, _selectedCornerIndex),
+                      ),
+
+                      // Draggable Corner Handles
+                      for (var i = 0; i < 4; i++)
+                        Positioned(
+                          left: _corners[i].dx * w - 18,
+                          top: _corners[i].dy * h - 18,
+                          child: GestureDetector(
+                            onPanUpdate: (details) {
+                              setState(() {
+                                _selectedCornerIndex = i;
+                                final newX = (_corners[i].dx + details.delta.dx / w).clamp(0.0, 1.0);
+                                final newY = (_corners[i].dy + details.delta.dy / h).clamp(0.0, 1.0);
+                                _corners[i] = Offset(newX, newY);
+                              });
+                            },
+                            onTap: () => setState(() => _selectedCornerIndex = i),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _selectedCornerIndex == i
+                                    ? const Color(0xFFEC4899)
+                                    : const Color(0xFF6366F1),
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (_selectedCornerIndex == i
+                                            ? const Color(0xFFEC4899)
+                                            : const Color(0xFF6366F1))
+                                        .withValues(alpha: 0.6),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${i + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+
+          // Side Controls Panel
+          SizedBox(
+            width: 320,
+            child: Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111827),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Control de Esquinas', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+
+                  // Select Corner Segmented Buttons
+                  for (var i = 0; i < 4; i++)
+                    ListTile(
+                      dense: true,
+                      selected: i == _selectedCornerIndex,
+                      selectedTileColor: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      title: Text(_cornerNames[i]),
+                      subtitle: Text(
+                        'X: ${(_corners[i].dx * 100).toStringAsFixed(1)}% · Y: ${(_corners[i].dy * 100).toStringAsFixed(1)}%',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      leading: CircleAvatar(
+                        radius: 12,
+                        backgroundColor: i == _selectedCornerIndex
+                            ? const Color(0xFFEC4899)
+                            : const Color(0xFF6366F1),
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  OutlinedButton(
-                    onPressed: () => setState(() {
-                      for (var i = 0; i < _cameraCorners.length; i++) {
-                        _cameraCorners[i] = null;
-                      }
-                    }),
-                    child: const Text('Reiniciar puntos'),
+                      onTap: () => setState(() => _selectedCornerIndex = i),
+                    ),
+
+                  const Divider(height: 24),
+                  const Text(
+                    'Ajuste fino (Píxel a Píxel)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: _cameraCorners.every((c) => c != null) ? _applyCalibration : null,
-                    child: const Text('Aplicar calibración'),
+                  const SizedBox(height: 8),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton.filledTonal(
+                        onPressed: () => _nudgeSelectedCorner(-0.002, 0),
+                        icon: const Icon(Icons.arrow_left),
+                      ),
+                      Column(
+                        children: [
+                          IconButton.filledTonal(
+                            onPressed: () => _nudgeSelectedCorner(0, -0.002),
+                            icon: const Icon(Icons.arrow_drop_up),
+                          ),
+                          IconButton.filledTonal(
+                            onPressed: () => _nudgeSelectedCorner(0, 0.002),
+                            icon: const Icon(Icons.arrow_drop_down),
+                          ),
+                        ],
+                      ),
+                      IconButton.filledTonal(
+                        onPressed: () => _nudgeSelectedCorner(0.002, 0),
+                        icon: const Icon(Icons.arrow_right),
+                      ),
+                    ],
+                  ),
+
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => setState(() {
+                            _corners[0] = const Offset(0.1, 0.1);
+                            _corners[1] = const Offset(0.9, 0.1);
+                            _corners[2] = const Offset(0.9, 0.9);
+                            _corners[3] = const Offset(0.1, 0.9);
+                          }),
+                          child: const Text('Reiniciar'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: _applyCalibration,
+                          child: const Text('Guardar'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _CornerPainter extends CustomPainter {
-  _CornerPainter(this.corners);
+class _QuadPainter extends CustomPainter {
+  _QuadPainter(this.corners, this.selectedIndex);
 
-  final List<Offset?> corners;
+  final List<Offset> corners;
+  final int selectedIndex;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.amber
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
+    final w = size.width;
+    final h = size.height;
 
-    canvas.drawRect(Rect.fromLTWH(24, 24, size.width - 48, size.height - 48), paint);
+    final points = corners.map((c) => Offset(c.dx * w, c.dy * h)).toList();
 
-    for (var i = 0; i < corners.length; i++) {
-      final c = corners[i];
-      if (c == null) continue;
-      canvas.drawCircle(c, 8, Paint()..color = Colors.amber);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '${i + 1}',
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, c + const Offset(10, -6));
-    }
+    final path = Path()
+      ..moveTo(points[0].dx, points[0].dy)
+      ..lineTo(points[1].dx, points[1].dy)
+      ..lineTo(points[2].dx, points[2].dy)
+      ..lineTo(points[3].dx, points[3].dy)
+      ..close();
+
+    // Fill semi-transparent cyan
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF6366F1).withValues(alpha: 0.15)
+        ..style = PaintingStyle.fill,
+    );
+
+    // Border line
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF6366F1)
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _CornerPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _QuadPainter oldDelegate) => true;
 }

@@ -10,7 +10,7 @@ class ProjectionWindowService {
     await Navigator.of(context).push(
       PageRouteBuilder<void>(
         fullscreenDialog: true,
-        pageBuilder: (ctx, _, __) => _ProjectionPage(scene: scene),
+        pageBuilder: (ctx, animation, secondaryAnimation) => _ProjectionPage(scene: scene),
       ),
     );
   }

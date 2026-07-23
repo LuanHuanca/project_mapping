@@ -1,13 +1,14 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mapper_core/mapper_core.dart';
+import 'package:mapper_vision/mapper_vision.dart';
 
 import '../../providers/app_state.dart';
 import '../../services/projection_window_service.dart';
+import '../../widgets/hand_overlay.dart';
 import '../../widgets/projection_canvas.dart';
 
 class PresentationScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,9 @@ class PresentationScreen extends ConsumerStatefulWidget {
 
 class _PresentationScreenState extends ConsumerState<PresentationScreen> {
   Timer? _trackTimer;
+  final HandLandmarkService _handService = HandLandmarkService();
+  List<HandLandmark> _activeLandmarks = const [];
+  HandGesture _activeGesture = HandGesture.none;
 
   @override
   void initState() {
@@ -27,6 +31,18 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
       ref.read(appStateProvider.notifier).tickTracking();
       if (mounted) setState(() {});
     });
+  }
+
+  void updateHandFrame(List<HandLandmark> landmarks) {
+    final gesture = _handService.classify(landmarks);
+    setState(() {
+      _activeLandmarks = landmarks;
+      _activeGesture = gesture;
+    });
+
+    if (gesture == HandGesture.openPalm) {
+      ref.read(appStateProvider.notifier).resyncTracking();
+    }
   }
 
   @override
@@ -48,22 +64,18 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.keyR) {
-      _analyzeRemote();
+      _analyzeLocal();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
 
-  Future<void> _analyzeRemote() async {
-    final api = ref.read(appStateProvider.notifier).api;
+  Future<void> _analyzeLocal() async {
     final scene = ref.read(sceneStoreProvider).activeScene;
-    if (api == null || scene == null) return;
+    if (scene == null) return;
     try {
-      final response = await api.analyzeScene(
-        sceneId: scene.id,
-        jpegBytes: Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xD9]),
-      );
-      await ref.read(appStateProvider.notifier).applyRekognitionResults(response.objects);
+      final objects = await LocalDetector().detectObjects(Uint8List(0));
+      await ref.read(appStateProvider.notifier).applyRekognitionResults(objects);
       if (mounted) setState(() {});
     } catch (_) {}
   }
@@ -75,7 +87,7 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
     final showDebug = mode == AppMode.rehearsal;
 
     if (scene == null) {
-      return const Center(child: Text('Sin escena'));
+      return const Center(child: Text('Sin escena activa'));
     }
 
     return Focus(
@@ -84,28 +96,67 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
       child: Column(
         children: [
           if (mode != AppMode.show)
-            Padding(
-              padding: const EdgeInsets.all(8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                border: Border(
+                  bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+              ),
               child: Row(
                 children: [
                   FilledButton.icon(
                     onPressed: _openProjection,
-                    icon: const Icon(Icons.open_in_new),
-                    label: const Text('Pantalla proyector (fullscreen)'),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Abrir Pantalla Proyector (Fullscreen)'),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton.icon(
+                    onPressed: () => ref.read(appStateProvider.notifier).resyncTracking(),
+                    icon: const Icon(Icons.sync, size: 16),
+                    label: const Text('Re-sync Posiciones'),
                   ),
                   const Spacer(),
-                  Text(
-                    'Espacio = re-sync · R = re-analizar AWS',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.keyboard_outlined, size: 14, color: Colors.white54),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Espacio = Re-sync · R = Re-analizar local',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           Expanded(
-            child: ProjectionCanvas(
-              objects: scene.objects,
-              showDebugGrid: showDebug,
-              muted: mode == AppMode.show,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ProjectionCanvas(
+                  objects: scene.objects,
+                  showDebugGrid: showDebug,
+                  muted: mode == AppMode.show,
+                ),
+                if (showDebug)
+                  HandOverlay(
+                    landmarks: _activeLandmarks,
+                    gesture: _activeGesture,
+                  ),
+              ],
             ),
           ),
         ],

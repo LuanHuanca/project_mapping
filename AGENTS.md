@@ -12,8 +12,8 @@ Lee primero [`.cursor/README.md`](.cursor/README.md) y la regla [`.cursor/rules/
 # App
 cd apps/mapper_desktop && flutter pub get && flutter run -d windows
 
-# Infra
-cd infra && npm install && npx cdk deploy
+# Infra (Usar pnpm exclusivamente por seguridad)
+cd infra && pnpm install && pnpm cdk deploy
 
 # Tests core
 cd packages/mapper_core && dart test

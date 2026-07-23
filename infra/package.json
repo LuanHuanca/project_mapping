@@ -2,11 +2,13 @@
   "name": "project-mapping-infra",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "tsc",
     "cdk": "cdk",
     "deploy": "cdk deploy --require-approval never",
-    "synth": "cdk synth"
+    "synth": "cdk synth",
+    "security-audit": "pnpm audit"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
