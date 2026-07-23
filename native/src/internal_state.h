@@ -23,6 +23,7 @@ struct GpuShape {
     GLuint vbo = 0;
     int vertex_count = 0;
     std::vector<RenderPoint2D> vertices;
+    std::map<int, RenderLayerData> layers;
 };
 
 struct PreviewFBO {

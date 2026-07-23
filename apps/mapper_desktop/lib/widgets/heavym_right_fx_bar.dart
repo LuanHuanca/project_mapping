@@ -5,10 +5,12 @@ class HeavyMRightFxBar extends StatelessWidget {
     super.key,
     required this.selectedFxMode,
     required this.onSelectFxMode,
+    this.suggestedShaderNames = const ['Grid Wave', 'Outline Tracer'],
   });
 
   final String selectedFxMode;
   final ValueChanged<String> onSelectFxMode;
+  final List<String> suggestedShaderNames;
 
   @override
   Widget build(BuildContext context) {
@@ -35,12 +37,30 @@ class HeavyMRightFxBar extends StatelessWidget {
             activeColor: const Color(0xFFEF4444),
           ),
 
-          // Generative Shaders
-          _fxIconButton(
-            modeKey: 'shaders',
-            tooltip: 'Efectos Generativos (Shaders)',
-            icon: Icons.auto_awesome,
-            activeColor: const Color(0xFFF59E0B),
+          // Generative Shaders with AI Suggestion Badge
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _fxIconButton(
+                modeKey: 'shaders',
+                tooltip: 'Efectos Generativos (Sugeridos para esta superficie: ${suggestedShaderNames.join(", ")})',
+                icon: Icons.auto_awesome,
+                activeColor: const Color(0xFFF59E0B),
+              ),
+              if (suggestedShaderNames.isNotEmpty)
+                Positioned(
+                  top: 2,
+                  right: 4,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
 
           // Media Library
@@ -54,7 +74,7 @@ class HeavyMRightFxBar extends StatelessWidget {
           // Sparkles / Special FX
           _fxIconButton(
             modeKey: 'sparkles',
-            tooltip: 'Efectos Especiales HeavyM',
+            tooltip: 'Efectos Especiales Generativos',
             icon: Icons.blur_on_rounded,
             activeColor: const Color(0xFFEC4899),
           ),

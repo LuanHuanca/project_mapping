@@ -87,6 +87,12 @@ extern "C" {
     RENDERER_API RendererStatus set_homography_matrix(const double* matrix_9_elements);
     RENDERER_API RendererStatus set_shape_geometry(int shape_id, const RenderShapeData* shape);
 
+    RENDERER_API RendererStatus set_layer_properties(
+        int layer_id, 
+        int shape_id, 
+        const RenderLayerData* layer_data
+    );
+
     RENDERER_API RendererStatus upload_layer_texture(
         int layer_id, 
         const uint8_t* pixel_data, 

@@ -28,6 +28,8 @@ dependencies:
     path: ../../packages/mapper_aws_api
   mapper_vision:
     path: ../../packages/mapper_vision
+  mapper_render:
+    path: ../../packages/mapper_render
 
 dev_dependencies:
   flutter_test:

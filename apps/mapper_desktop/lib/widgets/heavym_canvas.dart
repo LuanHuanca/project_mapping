@@ -52,10 +52,29 @@ class _HeavyMCanvasState extends State<HeavyMCanvas> {
               // Render Faces and Multi-Vertex Polygons
               for (final obj in widget.objects)
                 if (!obj.isHidden) ...[
-                  // Polygon Face Render
+                  // Polygon Face Render + Full Shape Translation Dragging
                   Positioned.fill(
                     child: GestureDetector(
                       onTap: () => widget.onSelectObject(obj.id),
+                      onPanUpdate: (details) {
+                        if (obj.isLocked) return;
+                        widget.onSelectObject(obj.id);
+                        final dx = details.delta.dx / w;
+                        final dy = details.delta.dy / h;
+
+                        for (var i = 0; i < obj.vertices.length; i++) {
+                          final v = obj.vertices[i];
+                          var newX = (v.x + dx).clamp(0.0, 1.0);
+                          var newY = (v.y + dy).clamp(0.0, 1.0);
+
+                          if (widget.snapToGrid) {
+                            newX = (newX * 20).round() / 20;
+                            newY = (newY * 20).round() / 20;
+                          }
+
+                          widget.onVertexUpdated(obj.id, i, Point2D(newX, newY));
+                        }
+                      },
                       child: CustomPaint(
                         painter: _PolygonFacePainter(
                           object: obj,
@@ -177,7 +196,7 @@ class _HeavyMCanvasState extends State<HeavyMCanvas> {
     final py = (v.y * canvasHeight).clamp(0.0, canvasHeight);
 
     final nodeColor = (isHovered || isSelectedObj)
-        ? const Color(0xFFF59E0B) // Amber HeavyM Orange
+        ? const Color(0xFFF59E0B)
         : Colors.white;
 
     return Positioned(
@@ -312,7 +331,7 @@ class _GridCustomPainter extends CustomPainter {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
     for (var y = 0.0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      canvas.drawLine(Offset(0, y), Offset(size.width, size.height), paint);
     }
   }
 

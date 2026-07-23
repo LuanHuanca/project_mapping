@@ -1,6 +1,7 @@
 #include <windows.h>
 #include "../native_renderer.h"
 #include <iostream>
+#include <fstream>
 #include <cmath>
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -12,6 +13,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    // Attach to parent console window for immediate stdout printing
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONOUT$", "w", stderr);
+    }
+
     WNDCLASS wc = {};
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
@@ -44,7 +51,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     };
     upload_layer_texture(100, amber_pixels, 2, 2, PIXEL_FORMAT_RGBA8);
 
-    // 3. Prueba de propagación de errores a propósito (Pass NULL pointer to set_homography_matrix)
+    // 3. Configurar propiedades de capa dinámica vía set_layer_properties
+    RenderLayerData layer_data = {};
+    layer_data.layer_id = 100;
+    layer_data.layer_type = 3; // Shader Layer
+    layer_data.opacity = 0.85f;
+    layer_data.blend_mode = BLEND_ADDITIVE;
+    layer_data.effect_type = EFFECT_CONCENTRIC_PULSE;
+    layer_data.effect_speed = 1.2f;
+    layer_data.color_r = 0.2f;
+    layer_data.color_g = 0.8f;
+    layer_data.color_b = 1.0f;
+    layer_data.color_a = 1.0f;
+    set_layer_properties(100, 1, &layer_data);
+
+    // 4. Prueba de propagación de errores a propósito (Pass NULL pointer to set_homography_matrix)
     RendererStatus err_status = set_homography_matrix(NULL);
     RendererStatus last_err = get_last_error();
     if (err_status == RENDERER_ERROR_INVALID_MATRIX && last_err == RENDERER_ERROR_INVALID_MATRIX) {
@@ -55,41 +76,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     double identity[9] = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
     set_homography_matrix(identity);
 
-    // 4. Bucle de mensajes 60 FPS Win32 con deformación dinámica de vértices (Hot Reload Warp)
-    MSG msg = {};
-    float time_counter = 0.0f;
-    bool running = true;
-
-    while (running) {
+    // 5. Bucle corto de 10 frames para capturar diagnósticos
+    for (int frame = 0; frame < 10; ++frame) {
+        MSG msg = {};
         while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_QUIT) {
-                running = false;
-            }
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
 
-        time_counter += 0.016f;
-
-        // Animar en caliente la posición del vértice 2 (esquina inferior derecha) mediante set_shape_geometry
-        float offsetX = sinf(time_counter * 3.0f) * 0.1f;
-        float offsetY = cosf(time_counter * 3.0f) * 0.1f;
-
         RenderPoint2D quad_vertices[4] = {
             {0.2f, 0.2f},
             {0.8f, 0.2f},
-            {0.8f + offsetX, 0.8f + offsetY}, // Vértice 2 animado en caliente
+            {0.8f, 0.8f},
             {0.2f, 0.8f}
         };
         RenderShapeData shape_data = { quad_vertices, 4 };
         set_shape_geometry(1, &shape_data);
 
-        // Renderizar frame con pulso concéntrico animado
-        render_frame(time_counter);
-        Sleep(16); // ~60 FPS
+        render_frame(0.016f * frame);
+        Sleep(16);
     }
 
-    // 5. Cleanup final
+    // 6. Cleanup final
     cleanup_native_renderer();
     return 0;
 }
