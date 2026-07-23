@@ -23,6 +23,7 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
   final HandLandmarkService _handService = HandLandmarkService();
   List<HandLandmark> _activeLandmarks = const [];
   HandGesture _activeGesture = HandGesture.none;
+  bool _showDebugGrid = true;
 
   @override
   void initState() {
@@ -80,11 +81,30 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
     } catch (_) {}
   }
 
+  void _simulateGesture(HandGesture g) {
+    setState(() {
+      _activeGesture = g;
+      if (g == HandGesture.point) {
+        _activeLandmarks = List.generate(21, (i) {
+          if (i == 8) return const HandLandmark(id: 8, x: 0.5, y: 0.2); // fingertip up
+          if (i == 6) return const HandLandmark(id: 6, x: 0.5, y: 0.4);
+          return const HandLandmark(id: 0, x: 0.5, y: 0.7);
+        });
+      } else {
+        _activeLandmarks = [];
+      }
+    });
+
+    if (g == HandGesture.openPalm) {
+      ref.read(appStateProvider.notifier).resyncTracking();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final mode = ref.watch(appStateProvider);
     final scene = ref.read(sceneStoreProvider).activeScene;
-    final showDebug = mode == AppMode.rehearsal;
+    final isRehearsal = mode == AppMode.rehearsal;
 
     if (scene == null) {
       return const Center(child: Text('Sin escena activa'));
@@ -143,18 +163,144 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
               ),
             ),
           Expanded(
-            child: Stack(
-              fit: StackFit.expand,
+            child: Row(
               children: [
-                ProjectionCanvas(
-                  objects: scene.objects,
-                  showDebugGrid: showDebug,
-                  muted: mode == AppMode.show,
+                // Live Projection Canvas
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ProjectionCanvas(
+                        objects: scene.objects,
+                        showDebugGrid: isRehearsal && _showDebugGrid,
+                        muted: mode == AppMode.show,
+                      ),
+                      if (isRehearsal)
+                        HandOverlay(
+                          landmarks: _activeLandmarks,
+                          gesture: _activeGesture,
+                        ),
+                    ],
+                  ),
                 ),
-                if (showDebug)
-                  HandOverlay(
-                    landmarks: _activeLandmarks,
-                    gesture: _activeGesture,
+
+                // Rehearsal Live Control Panel (Only visible in Ensayo mode)
+                if (isRehearsal)
+                  SizedBox(
+                    width: 300,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111827).withValues(alpha: 0.95),
+                        border: Border(
+                          left: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.tune_outlined, color: Color(0xFF10B981), size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Consola de Ensayo',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Grid Toggle
+                            SwitchListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Rejilla Debug', style: TextStyle(fontSize: 12)),
+                              value: _showDebugGrid,
+                              onChanged: (val) => setState(() => _showDebugGrid = val),
+                            ),
+
+                            const Divider(height: 24),
+                            const Text(
+                              'Simulador de Gestos en Vivo',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                ChoiceChip(
+                                  label: const Text('Señalar (Point)', style: TextStyle(fontSize: 11)),
+                                  selected: _activeGesture == HandGesture.point,
+                                  onSelected: (_) => _simulateGesture(HandGesture.point),
+                                ),
+                                ChoiceChip(
+                                  label: const Text('Puño (Fist)', style: TextStyle(fontSize: 11)),
+                                  selected: _activeGesture == HandGesture.fist,
+                                  onSelected: (_) => _simulateGesture(HandGesture.fist),
+                                ),
+                                ChoiceChip(
+                                  label: const Text('Palma (OpenPalm)', style: TextStyle(fontSize: 11)),
+                                  selected: _activeGesture == HandGesture.openPalm,
+                                  onSelected: (_) => _simulateGesture(HandGesture.openPalm),
+                                ),
+                                ChoiceChip(
+                                  label: const Text('Reset Gestos', style: TextStyle(fontSize: 11)),
+                                  selected: _activeGesture == HandGesture.none,
+                                  onSelected: (_) => _simulateGesture(HandGesture.none),
+                                ),
+                              ],
+                            ),
+
+                            const Divider(height: 24),
+                            Text(
+                              'Regiones Activas (${scene.objects.length})',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+
+                            for (final obj in scene.objects)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.03),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: _parseColor(obj.content.colorHex),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        obj.label,
+                                        style: const TextStyle(fontSize: 12, color: Colors.white),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${obj.layers.length} capas',
+                                      style: const TextStyle(fontSize: 10, color: Colors.white54),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -162,5 +308,13 @@ class _PresentationScreenState extends ConsumerState<PresentationScreen> {
         ],
       ),
     );
+  }
+
+  Color _parseColor(String hex) {
+    final value = hex.replaceFirst('#', '');
+    if (value.length == 6) {
+      return Color(int.parse('FF$value', radix: 16));
+    }
+    return const Color(0xFF6366F1);
   }
 }

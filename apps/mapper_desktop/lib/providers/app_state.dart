@@ -111,11 +111,28 @@ class AppStateNotifier extends StateNotifier<AppMode> {
     _persist();
   }
 
+  void deleteRegion(String objectId) {
+    final scene = store.activeScene;
+    if (scene == null) return;
+    scene.objects.removeWhere((o) => o.id == objectId);
+    tracker.resetFromScene(scene.objects);
+    _persist();
+  }
+
+  void clearAllRegions() {
+    final scene = store.activeScene;
+    if (scene == null) return;
+    scene.objects.clear();
+    tracker.resetFromScene(scene.objects);
+    _persist();
+  }
+
   void updateObjectBbox(String objectId, NormalizedBBox bbox) {
     final scene = store.activeScene;
     if (scene == null) return;
-    final obj = scene.objects.firstWhere((o) => o.id == objectId);
-    obj.bboxCamera = bbox;
+    final idx = scene.objects.indexWhere((o) => o.id == objectId);
+    if (idx < 0) return;
+    scene.objects[idx].bboxCamera = bbox;
     store.applyHomographyToObjects();
     tracker.resetFromScene(scene.objects);
     _persist();
